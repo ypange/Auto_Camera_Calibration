@@ -37,9 +37,27 @@ def get_translation_matrix(K, rotation_matrix, h, w, H):
 	print(translation_matrix)	
 	return translation_matrix 
 
+def decompose_projection_matrix(projection_matrix):
+	Hinf = projection_matrix[:,:3]
+	h = projection_matrix[:,-1]
 
+	Xo = np.matmul(np.linalg.inv(Hinf), h)
+	print(Xo)
+	q, r = np.linalg.qr(np.linalg.inv(Hinf))
+	R = np.transpose(q)
+	print(R)	
+	K = np.linalg.inv(r)
+	print(K)	
+	return Xo, R, K
+	
+#[u1,v1,u2,v2,u3,v3] = list(map(int, input().split()))
 u1,v1,u2,v2,u3,v3 = -217,70,1806,31,427,4906
 points = [[u1, v1],[u2, v2],[u3, v3]]
 K = get_intrinsic_matrix(points)
 R = get_rotation_matrix(K, points)
 tvec = get_translation_matrix(K, R, 576, 720, 7420)
+extrinisc_matrix = np.concatenate((R, tvec), 1)
+
+projection_matrix = np.matmul(K, extrinisc_matrix)
+X0, R, K = decompose_projection_matrix(projection_matrix)
+
