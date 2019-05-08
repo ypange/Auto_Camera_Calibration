@@ -47,8 +47,11 @@ def decompose_projection_matrix(projection_matrix):
 	R = np.transpose(q)
 	print(R)	
 	K = np.linalg.inv(r)
-	print(K)	
-	return Xo, R, K
+	print(K)
+	T = np.matmul(R, X0)
+	print(T)
+	
+	return Xo, R, K, T
 	
 #[u1,v1,u2,v2,u3,v3] = list(map(int, input().split()))
 u1,v1,u2,v2,u3,v3 = -217,70,1806,31,427,4906
@@ -59,5 +62,5 @@ tvec = get_translation_matrix(K, R, 576, 720, 7420)
 extrinisc_matrix = np.concatenate((R, tvec), 1)
 
 projection_matrix = np.matmul(K, extrinisc_matrix)
-X0, R, K = decompose_projection_matrix(projection_matrix)
+X0, R, K, T = decompose_projection_matrix(projection_matrix)
 
