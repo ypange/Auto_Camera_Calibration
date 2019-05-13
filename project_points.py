@@ -36,7 +36,30 @@ def originInImage(T_groundToCamera, K):
 	X = np.matmul(K, T_groundToCamera)
 	print(X[0]/X[2], X[1]/X[2])
 
-imgPoints = np.array([(349,160),(368,160),(368,192),(349,192)], dtype=np.float32)
+
+def orthoProjection(P_groundToCamera, K):
+	H = np.zeros((3,3), np.float32)
+	H[:,:2] = P_groundToCamera[:,:2]
+	H[:,2] = P_groundToCamera[:,3]
+	H = np.matmul(K, H)
+	H = np.linalg.inv(H)
+	M = np.float32([[1,0,2000],[0,1,2000], [0, 0, 1]])
+	M = np.matmul(M, H)
+
+	img = cv2.imread("test.jpg")
+	cv2.circle(img, (351, 336), 1, (255, 0, 0), -1)
+	cv2.circle(img, (448, 338), 1, (0, 255, 0), -1)
+
+	dst = cv2.warpPerspective(img, M, (4000,4000))
+
+	cv2.namedWindow("", cv2.WINDOW_NORMAL)
+	cv2.imshow("", dst)
+	cv2.imshow(" ", img)
+	cv2.imwrite("ortho.jpg", dst)
+	cv2.imwrite("original.jpg", img)		
+	cv2.waitKey(0)
+
+imgPoints = np.array([(349,160),(368,160),(368,192),(348,192)], dtype=np.float32)
 objPoints = np.array([(-35.,57.,0.),(35.,57.,0.),(35.,-57.,0.),(-35.,-57.,0.)], dtype=np.float32)
 K = np.asarray([(624.77231988, 0., 305.88428381), (0., 624.47737775, 260.76879217), ( 0., 0., 1.)])
 D = np.asarray([(9.04226563e-02, -1.32869626e-01, -7.61975496e-04, -1.40342881e-04, -2.68507190e-01)])
@@ -52,3 +75,4 @@ imgPoints = np.array([[351, 336, 1], [448, 338, 1]])
 objPoints = cameraToGround(P_groundToCamera, imgPoints, K)
 print(objPoints)
 
+orthoProjection(P_groundToCamera, K)
