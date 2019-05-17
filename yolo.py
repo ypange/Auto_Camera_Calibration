@@ -121,53 +121,156 @@ model(get_test_input(inp_dim, CUDA), CUDA)
 
 model.eval()
 
-cap = cv2.VideoCapture('/home/aman/Desktop/aman/GP080106.MP4')
+K = np.array([[584.95, 0.0, 635.12], [0., 584.42, 367.63], [0., 0., 1.]])
+D = np.array([-0.26117408,  0.09197799, -0.00055912,  0.00033594, -0.01686286])
+
+cap = cv2.VideoCapture('/home/aman/Videos/vlc-record-2019-05-17-10h41m37s-GP030106.MP4-.mp4')
+count = 0
+sift = cv2.xfeatures2d.SIFT_create()
+blank = np.ones((360 * 3, 640 * 3), np.uint8) * 255
+prevs = []
+lines = []
 while(1):
     ret, frame = cap.read()
-    cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
-    cv2.imshow('frame',frame)
-    blank = np.zeros(frame.shape[:2], np.uint8)
-    
-    img, orig_im, dim = prep_image(frame, inp_dim)
-    im_dim = torch.FloatTensor(dim).repeat(1,2)                        
-           
-    if CUDA:
-        im_dim = im_dim.cuda()
-        img = img.cuda()
 
-    with torch.no_grad():   
-        output = model(Variable(img), CUDA)
-    
-    output = write_results(output, confidence, num_classes, nms = True, nms_conf = nms_thesh)
-         
-    im_dim = im_dim.repeat(output.size(0), 1)
-    scaling_factor = torch.min(inp_dim/im_dim,1)[0].view(-1,1)
-    
-    output[:,[1,3]] -= (inp_dim - scaling_factor*im_dim[:,0].view(-1,1))/2
-    output[:,[2,4]] -= (inp_dim - scaling_factor*im_dim[:,1].view(-1,1))/2
-    
-    output[:,1:5] /= scaling_factor
-
-    for i in range(output.shape[0]):
-        output[i, [1,3]] = torch.clamp(output[i, [1,3]], 0.0, im_dim[i,0])
-        output[i, [2,4]] = torch.clamp(output[i, [2,4]], 0.0, im_dim[i,1])
-    
-    objects = list(map(lambda x: write(x, orig_im), output))
-    cars = []
-    pedestarians = []
-    for object in objects:
-        if object[0] is not None:
-            [[classifier, (x1, y1), (x2, y2)]] = object
-            
-            if classifier is 'person':
-                cv2.rectangle(blank, (max(x1 - 5, 0), max(y1 - 5, 0)), (min(x2 + 5, blank.shape[-1]), min(y2 + 5, blank.shape[0])), 255, -1)
-            else:
-                cv2.rectangle(blank, (max(x1 - 5, 0), max(y1 - 5, 0)), (min(x2 + 5, blank.shape[-1]), min(y2 + 5, blank.shape[0])), 255, -1)    
-    cv2.imshow("useful", cv2.bitwise_and(frame, frame, mask = blank))
-    k = cv2.waitKey(30) & 0xff
-    if k == 27:
-        cv2.imwrite("peds.jpg", cv2.bitwise_and(frame, frame, mask = blank))
+    if ret is not True:
         break
+    frame = cv2.undistort(frame, K, D)
+    frame = cv2.resize(frame, (640,360))
 
+    foot_print = np.zeros(frame.shape[:2], np.uint8)
+
+    if count == 0:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        kp1, des1 = sift.detectAndCompute(gray, None)
+
+        img, orig_im, dim = prep_image(frame, inp_dim)
+        im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        if CUDA:
+            im_dim = im_dim.cuda()
+            img = img.cuda()
+
+        with torch.no_grad():
+            output = model(Variable(img), CUDA)
+
+        output = write_results(output, confidence, num_classes, nms=True, nms_conf=nms_thesh)
+
+        im_dim = im_dim.repeat(output.size(0), 1)
+        scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
+
+        output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
+        output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
+
+        output[:, 1:5] /= scaling_factor
+
+        for i in range(output.shape[0]):
+            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
+            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
+
+
+        objects = list(map(lambda x: write(x, orig_im), output))
+        for object in objects:
+            if object[0] is not None:
+                [[classifier, (x1, y1), (x2, y2)]] = object
+
+                if classifier is 'car':
+                    prevs.append([(x1, y1), (x2, y2)])
+                    cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
+
+    elif count % 6 == 0:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        kp2, des2 = sift.detectAndCompute(gray, None)
+
+        img, orig_im, dim = prep_image(frame, inp_dim)
+        im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        if CUDA:
+            im_dim = im_dim.cuda()
+            img = img.cuda()
+
+        with torch.no_grad():
+            output = model(Variable(img), CUDA)
+
+        output = write_results(output, confidence, num_classes, nms=True, nms_conf=nms_thesh)
+
+        im_dim = im_dim.repeat(output.size(0), 1)
+        scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
+
+        output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
+        output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
+
+        output[:, 1:5] /= scaling_factor
+
+        for i in range(output.shape[0]):
+            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
+            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
+
+        objects = list(map(lambda x: write(x, orig_im), output))
+        for prev in prevs:
+            if prev is not None:
+                [(x1, y1), (x2, y2)] = prev
+                cv2.rectangle(frame, (max(x1 - 5, 0), max(y1 - 5, 0)),
+                              (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), (255,0,0), 2)
+                cv2.rectangle(foot_print, (max(x1 - 5, 0), max(y1 - 5, 0)),
+                              (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), 255, -1)
+        prevs = []
+        for object in objects:
+            if object[0] is not None:
+                [[classifier, (x1, y1), (x2, y2)]] = object
+
+                if classifier is 'car':
+                    cv2.rectangle(foot_print, (max(x1 - 5, 0), max(y1 - 5, 0)),
+                                  (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), 255, -1)
+                    prevs.append([(x1, y1), (x2, y2)])
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        bf = cv2.BFMatcher()
+        matches = bf.knnMatch(des1, des2, k=2)
+
+        good = []
+        for m, n in matches:
+            if m.distance < 0.75 * n.distance:
+                good.append(m)
+
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+        for ([[x1, y1]], [[x2, y2]]) in zip(src_pts, dst_pts):
+            if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 50 and foot_print[int(y1)][int(x1)] == 255 and foot_print[int(y2)][int(x2)] == 255:
+                cv2.circle(frame, (x1, y1), 3, (255, 0, 0), -1)
+                cv2.circle(frame, (x2, y2), 3, (0, 255, 0), -1)
+                cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+                if y1 != y2:
+                    theta = np.arctan(-(x2 - x1) / (y2 - y1))
+                else:
+                    if (x1 - x2) > 0:
+                        theta = -np.pi / 2
+                    else:
+                        theta = np.pi / 2
+                rho = y1 * np.sin(theta) + x1 * np.cos(theta)
+                lines.append([rho, theta])
+                for i in range(360 * 3):
+                    x = int(640 + rho / np.cos(theta) - (i - 360) * np.tan(theta))
+                    if 0 <= x < 640 * 3:
+                        blank[i][x] = blank[i][x] - 1
+        #blank = cv2.convertScaleAbs(blank)
+        cv2.imshow(" ", blank)
+        cv2.imwrite("blank.jpg", blank)
+        count = 0
+        kp1 = kp2
+        des1 = des2
+
+    if count == 0:
+        cv2.imshow("", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    count = count + 1
+
+# When everything done, release the capture
+
+with open('outfile', 'wb') as fp:
+    pkl.dump(lines, fp)
+print(lines)
 cap.release()
-
+cv2.destroyAllWindows()
