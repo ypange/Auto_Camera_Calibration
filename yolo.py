@@ -279,4 +279,5 @@ cv2.destroyAllWindows()
 """
 pt1 = 1073, 365
 pt2  = 657, 424
+https://drive.google.com/file/d/1E9nVX0c17-OzZioCYroHZVGj4ANdtDkD/view?usp=sharing
 """
