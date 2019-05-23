@@ -121,13 +121,13 @@ model(get_test_input(inp_dim, CUDA), CUDA)
 
 model.eval()
 
-K = np.array([[584.95, 0.0, 635.12], [0., 584.42, 367.63], [0., 0., 1.]])
-D = np.array([-0.26117408,  0.09197799, -0.00055912,  0.00033594, -0.01686286])
-
-cap = cv2.VideoCapture('/home/aman/Videos/vlc-record-2019-05-17-10h41m37s-GP030106.MP4-.mp4')
+K = np.array([[ 894.18, 0.0,    951.75], [0.0,  913.20, 573.04], [0., 0., 1.]])
+D = np.array([-0.35887,  0.16375, -0.00081, -0.00074, -0.04039])
+cv2.namedWindow(" ", cv2.WINDOW_NORMAL)
+cap = cv2.VideoCapture('/home/aman/Videos/vlc-record-2019-05-22-13h01m25s-2017_0627_145452_001.MOV-.avi')
 count = 0
 sift = cv2.xfeatures2d.SIFT_create()
-blank = np.ones((360 * 3, 640 * 3), np.uint8) * 255
+blank = np.ones((540 * 5, 960 * 5), np.uint8) * 255
 prevs = []
 lines = []
 while(1):
@@ -135,8 +135,8 @@ while(1):
 
     if ret is not True:
         break
-    frame = cv2.undistort(frame, K, D)
-    frame = cv2.resize(frame, (640,360))
+    #frame = cv2.undistort(frame, K, D)
+    frame = cv2.resize(frame, (960,540))
 
     foot_print = np.zeros(frame.shape[:2], np.uint8)
 
@@ -236,7 +236,7 @@ while(1):
         dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
         for ([[x1, y1]], [[x2, y2]]) in zip(src_pts, dst_pts):
-            if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 50 and foot_print[int(y1)][int(x1)] == 255 and foot_print[int(y2)][int(x2)] == 255:
+            if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 100 and foot_print[int(y1)][int(x1)] == 255 and foot_print[int(y2)][int(x2)] == 255:
                 cv2.circle(frame, (x1, y1), 3, (255, 0, 0), -1)
                 cv2.circle(frame, (x2, y2), 3, (0, 255, 0), -1)
                 cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
@@ -250,9 +250,9 @@ while(1):
                         theta = np.pi / 2
                 rho = y1 * np.sin(theta) + x1 * np.cos(theta)
                 lines.append([rho, theta])
-                for i in range(360 * 3):
-                    x = int(640 + rho / np.cos(theta) - (i - 360) * np.tan(theta))
-                    if 0 <= x < 640 * 3:
+                for i in range(540 * 5):
+                    x = int(960*2 + rho / np.cos(theta) - (i - 540*2) * np.tan(theta))
+                    if 0 <= x < 960 * 5:
                         blank[i][x] = blank[i][x] - 1
         #blank = cv2.convertScaleAbs(blank)
         cv2.imshow(" ", blank)
@@ -274,3 +274,9 @@ with open('outfile', 'wb') as fp:
 print(lines)
 cap.release()
 cv2.destroyAllWindows()
+
+
+"""
+pt1 = 1073, 365
+pt2  = 657, 424
+"""
