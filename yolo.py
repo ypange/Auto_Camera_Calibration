@@ -1,17 +1,25 @@
 from __future__ import division
-import time
-import torch 
-import torch.nn as nn
-from torch.autograd import Variable
-import numpy as np
-import cv2 
+
 from util import *
 from darknet import Darknet
-from preprocess import prep_image, inp_to_image, letterbox_image
-import pandas as pd
-import random 
+from preprocess import letterbox_image
+
 import pickle as pkl
 import argparse
+import time
+start_time = time.time()
+
+# K = np.array([[584.95, 0.00, 635.12],[0.22, 584.42, 367.63], [0.00, 0.00, 1.00]])
+# D = np.array([-0.26117408, 0.09197799, 0,0,0])
+# K = np.array([[ 894.18, 0.0,    951.75], [0.0,  913.20, 573.04], [0., 0., 1.]])
+# D = np.array([-0.35887,  0.16375, 0, 0, 0])
+
+
+def undistort(img):
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K, D, (1920, 1080), 1)
+    mapx, mapy = cv2.initUndistortRectifyMap(K, D, None, newcameramtx, (1920, 1080), 5)
+    image = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
+    return image
 
 
 def get_test_input(input_dim, CUDA):
@@ -21,17 +29,17 @@ def get_test_input(input_dim, CUDA):
     img_ = img_[np.newaxis,:,:,:]/255.0
     img_ = torch.from_numpy(img_).float()
     img_ = Variable(img_)
-    
+
     if CUDA:
         img_ = img_.cuda()
-    
+
     return img_
 
 def prep_image(img, inp_dim):
     """
-    Prepare image for inputting to the neural network. 
-    
-    Returns a Variable 
+    Prepare image for inputting to the neural network.
+
+    Returns a Variable
     """
 
     orig_im = img
@@ -49,43 +57,35 @@ def write(x, img):
     classes = load_classes('data/coco.names')
     label = "{0}".format(classes[cls])
     objects = []
-    if label in ['car']:
-        objects.append(['car', (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1]))])	    
-    elif label in ['person']:
-        objects.append(['person', (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1]))])
+    if label in ['car','bus','truck', 'bicycle', 'motorbike' ]:
+        objects.append(['car', (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1]))])
     else:
-        objects.append(None)	    
-        """color = random.choice(colors)
-	cv2.rectangle(img, (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1])), color, 1)
-	t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]
-	c2 = int(c1[0] + t_size[0] + 3), int(c1[1] + t_size[1] + 4)
-	cv2.rectangle(img, (int(c1[0]), int(c1[1])), c2,color, -1)
-	cv2.putText(img, label, (int(c1[0]), int(c1[1] + t_size[1] + 4)), cv2.FONT_HERSHEY_PLAIN, 1, [225,255,255], 1);"""
+        objects.append(None)
     return objects
 
 
 def arg_parse():
     """
     Parse arguements to the detect module
-    
+
     """
-    
-    
+
+
     parser = argparse.ArgumentParser(description='YOLO v3 Video Detection Module')
-   
-    parser.add_argument("--video", dest = 'video', help = 
+
+    parser.add_argument("--video", dest = 'video', help =
                         "Video to run detection upon",
                         default = "video.avi", type = str)
     parser.add_argument("--dataset", dest = "dataset", help = "Dataset on which the network has been trained", default = "pascal")
     parser.add_argument("--confidence", dest = "confidence", help = "Object Confidence to filter predictions", default = 0.7)
     parser.add_argument("--nms_thresh", dest = "nms_thresh", help = "NMS Threshhold", default = 0.4)
-    parser.add_argument("--cfg", dest = 'cfgfile', help = 
+    parser.add_argument("--cfg", dest = 'cfgfile', help =
                         "Config file",
                         default = "cfg/yolov3.cfg", type = str)
-    parser.add_argument("--weights", dest = 'weightsfile', help = 
+    parser.add_argument("--weights", dest = 'weightsfile', help =
                         "weightsfile",
                         default = "yolov3.weights", type = str)
-    parser.add_argument("--reso", dest = 'reso', help = 
+    parser.add_argument("--reso", dest = 'reso', help =
                         "Input resolution of the network. Increase to increase accuracy. Decrease to increase speed",
                         default = "416", type = str)
     return parser.parse_args()
@@ -111,7 +111,7 @@ print("Network successfully loaded")
 
 model.net_info["height"] = args.reso
 inp_dim = int(model.net_info["height"])
-assert inp_dim % 32 == 0 
+assert inp_dim % 32 == 0
 assert inp_dim > 32
 
 if CUDA:
@@ -121,66 +121,26 @@ model(get_test_input(inp_dim, CUDA), CUDA)
 
 model.eval()
 
-K = np.array([[ 894.18, 0.0,    951.75], [0.0,  913.20, 573.04], [0., 0., 1.]])
-D = np.array([-0.35887,  0.16375, -0.00081, -0.00074, -0.04039])
+
 cv2.namedWindow(" ", cv2.WINDOW_NORMAL)
-cap = cv2.VideoCapture('/home/aman/Videos/vlc-record-2019-05-22-13h01m25s-2017_0627_145452_001.MOV-.avi')
+cap = cv2.VideoCapture("data_videos/vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi")
+ret, frame = cap.read()
+h,w,c = frame.shape
+
 count = 0
 sift = cv2.xfeatures2d.SIFT_create()
-blank = np.ones((540 * 5, 960 * 5), np.uint8) * 255
-prevs = []
+canvas = np.zeros((h * 5, w * 5), np.uint8)
 lines = []
 while(1):
     ret, frame = cap.read()
 
     if ret is not True:
         break
-    #frame = cv2.undistort(frame, K, D)
-    frame = cv2.resize(frame, (960,540))
-
+    # frame = undistort(frame)
     foot_print = np.zeros(frame.shape[:2], np.uint8)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     if count == 0:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        kp1, des1 = sift.detectAndCompute(gray, None)
-
-        img, orig_im, dim = prep_image(frame, inp_dim)
-        im_dim = torch.FloatTensor(dim).repeat(1, 2)
-
-        if CUDA:
-            im_dim = im_dim.cuda()
-            img = img.cuda()
-
-        with torch.no_grad():
-            output = model(Variable(img), CUDA)
-
-        output = write_results(output, confidence, num_classes, nms=True, nms_conf=nms_thesh)
-
-        im_dim = im_dim.repeat(output.size(0), 1)
-        scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
-
-        output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
-        output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
-
-        output[:, 1:5] /= scaling_factor
-
-        for i in range(output.shape[0]):
-            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
-            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
-
-
-        objects = list(map(lambda x: write(x, orig_im), output))
-        for object in objects:
-            if object[0] is not None:
-                [[classifier, (x1, y1), (x2, y2)]] = object
-
-                if classifier is 'car':
-                    prevs.append([(x1, y1), (x2, y2)])
-                    cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
-
-    elif count % 6 == 0:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        kp2, des2 = sift.detectAndCompute(gray, None)
 
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
@@ -207,14 +167,6 @@ while(1):
             output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
 
         objects = list(map(lambda x: write(x, orig_im), output))
-        for prev in prevs:
-            if prev is not None:
-                [(x1, y1), (x2, y2)] = prev
-                cv2.rectangle(frame, (max(x1 - 5, 0), max(y1 - 5, 0)),
-                              (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), (255,0,0), 2)
-                cv2.rectangle(foot_print, (max(x1 - 5, 0), max(y1 - 5, 0)),
-                              (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), 255, -1)
-        prevs = []
         for object in objects:
             if object[0] is not None:
                 [[classifier, (x1, y1), (x2, y2)]] = object
@@ -222,21 +174,69 @@ while(1):
                 if classifier is 'car':
                     cv2.rectangle(foot_print, (max(x1 - 5, 0), max(y1 - 5, 0)),
                                   (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), 255, -1)
-                    prevs.append([(x1, y1), (x2, y2)])
+                    cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
+
+        kp1, des1 = sift.detectAndCompute(gray, mask=foot_print)
+
+    elif count % 3 == 0:
+
+        img, orig_im, dim = prep_image(frame, inp_dim)
+        im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        if CUDA:
+            im_dim = im_dim.cuda()
+            img = img.cuda()
+
+        with torch.no_grad():
+            output = model(Variable(img), CUDA)
+
+        output = write_results(output, confidence, num_classes, nms=True, nms_conf=nms_thesh)
+
+        im_dim = im_dim.repeat(output.size(0), 1)
+        scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
+
+        output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
+        output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
+
+        output[:, 1:5] /= scaling_factor
+
+        for i in range(output.shape[0]):
+            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
+            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
+
+        objects = list(map(lambda x: write(x, orig_im), output))
+
+        for object in objects:
+            if object[0] is not None:
+                [[classifier, (x1, y1), (x2, y2)]] = object
+
+                if classifier is 'car':
+                    cv2.rectangle(foot_print, (max(x1 - 5, 0), max(y1 - 5, 0)),
+                                  (min(x2 + 5, foot_print.shape[-1]), min(y2 + 5, foot_print.shape[0])), 255, -1)
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        kp2, des2 = sift.detectAndCompute(gray, mask=foot_print)
+        # print(len(des1), len(des2))
         bf = cv2.BFMatcher()
         matches = bf.knnMatch(des1, des2, k=2)
+        # FLANN_INDEX_KDTREE = 0
+        # index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+        # search_params = dict(checks=50)  # or pass empty dictionary
+        #
+        # flann = cv2.FlannBasedMatcher(index_params, search_params)
+        #
+        # matches = flann.knnMatch(des1, des2, k=2)
 
         good = []
         for m, n in matches:
-            if m.distance < 0.75 * n.distance:
+            if m.distance < 0.80 * n.distance:
                 good.append(m)
 
         src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
         dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
         for ([[x1, y1]], [[x2, y2]]) in zip(src_pts, dst_pts):
-            if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 100 and foot_print[int(y1)][int(x1)] == 255 and foot_print[int(y2)][int(x2)] == 255:
+            if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 100:
                 cv2.circle(frame, (x1, y1), 3, (255, 0, 0), -1)
                 cv2.circle(frame, (x2, y2), 3, (0, 255, 0), -1)
                 cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
@@ -250,13 +250,14 @@ while(1):
                         theta = np.pi / 2
                 rho = y1 * np.sin(theta) + x1 * np.cos(theta)
                 lines.append([rho, theta])
-                for i in range(540 * 5):
-                    x = int(960*2 + rho / np.cos(theta) - (i - 540*2) * np.tan(theta))
-                    if 0 <= x < 960 * 5:
-                        blank[i][x] = blank[i][x] - 1
-        #blank = cv2.convertScaleAbs(blank)
-        cv2.imshow(" ", blank)
-        cv2.imwrite("blank.jpg", blank)
+
+                """temp = np.zeros(canvas.shape, np.uint8)
+                x1 = np.int64(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
+                x2 = np.int64(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
+                cv2.line(temp, (x1,0), (x2, h * 5), 1, 1)
+                canvas = temp + canvas
+        cv2.imshow(" ", canvas)
+        cv2.imwrite("fvlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.jpg", canvas)"""
         count = 0
         kp1 = kp2
         des1 = des2
@@ -269,9 +270,9 @@ while(1):
 
 # When everything done, release the capture
 
-with open('outfile', 'wb') as fp:
+with open('outfiles/outfile0', 'wb') as fp:
     pkl.dump(lines, fp)
-print(lines)
+
 cap.release()
 cv2.destroyAllWindows()
 
