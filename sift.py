@@ -113,7 +113,7 @@ model(get_test_input(inp_dim, CUDA), CUDA)
 
 model.eval()
 
-cap = cv2.VideoCapture("data_videos/vlc-record-2019-05-17-10h41m37s-GP030106.MP4-.mp4")
+cap = cv2.VideoCapture("data_videos/vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi")
 ret, frame = cap.read()
 h, w, c = frame.shape
 
@@ -230,16 +230,16 @@ while True:
 
         cv2.imshow("Frame", frame)
         if cv2.waitKey(1) == 27:
-            with open('outfiles/outfile1', 'wb') as fp:
-                pkl.dump(lines, fp)
+            # with open('outfiles/outfile2', 'wb') as fp:
+            #     pkl.dump(lines, fp)
             break
     count = count + 1
 # When everything done, release the capture
 cap.release()
 cv2.destroyAllWindows()
-with open('outfiles/outfile0', 'wb') as fp:
-    pkl.dump(lines, fp)
-
+# with open('outfiles/outfile2', 'wb') as fp:
+#     pkl.dump(lines, fp)
+print(factor)
 
 """
 pt1 = 1073, 365
@@ -320,4 +320,14 @@ while(1):
 cv2.imwrite("blank_.jpg", blank)
 with open('outfiles', 'wb') as fp:
     pkl.dump(lines, fp)
+"""
+"""
+-58,141
+938,-52
+f = 343.185
+1280 x 720
+
+
+879,58
+
 """
