@@ -230,15 +230,16 @@ while True:
 
         cv2.imshow("Frame", frame)
         if cv2.waitKey(1) == 27:
-            # with open('outfiles/outfile2', 'wb') as fp:
-            #     pkl.dump(lines, fp)
+            with open('outfiles/200vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi', 'wb') as fp:
+                pkl.dump(lines, fp)
             break
+
     count = count + 1
 # When everything done, release the capture
 cap.release()
 cv2.destroyAllWindows()
-# with open('outfiles/outfile2', 'wb') as fp:
-#     pkl.dump(lines, fp)
+with open('outfiles/200vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi', 'wb') as fp:
+    pkl.dump(lines, fp)
 print(factor)
 
 """
