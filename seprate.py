@@ -5,36 +5,32 @@ import matplotlib.pyplot as plt
 import time
 from skimage.draw import line_aa
 
-file_name = 'outfiles/150vlc-record-2019-05-17-10h41m37s-GP030106'
+file_name = 'outfiles/200vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi'
 with open(file_name, 'rb') as fp:
     array = np.array(pkl.load(fp))
 rhos, thetas = array[:, 0], array[:, 1]
 bins, z, _ = plt.hist(thetas*180/np.pi, bins=180, range=(-90, 90))
 data = bins.argsort()[::-1]
 for i in range(1, len(data)):
-    if 175 <= data[0] <= 179:
-        if np.absolute(data[0] - data[i]) > 10 and data[0] - 175  < data[i]:
+    if 170 <= data[0] <= 179:
+        if np.absolute(data[0] - data[i]) > 10 and data[0] - 170 < data[i]:
             p = data[0] - 90
             q = data[i] - 90
             print(p, q)
             indices1a = np.where(np.absolute(thetas * 180 / np.pi - p) <= 5)
-            indices1b = np.where(np.absolute(thetas * 180 / np.pi - p) >= 85)
-            indices2a = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
-            indices2b = np.where(np.absolute(thetas * 180 / np.pi - q) >= 85)
+            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0 )] * 180 / np.pi - p) >= 85)
+            indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
-            indices2 = np.concatenate((indices2a, indices2b), axis=1)[0]
             break
     elif 0 <= data[0] <= 4:
-        if np.absolute(data[0] - data[i]) > 10 and 175 - data[0] >= data[i]:
+        if np.absolute(data[0] - data[i]) > 10 and 170 - data[0] >= data[i]:
             p = data[0] - 90
             q = data[i] - 90
             print(p, q)
             indices1a = np.where(np.absolute(thetas * 180 / np.pi - p) <= 5)
-            indices1b = np.where(np.absolute(thetas * 180 / np.pi - p) >= 85)
-            indices2a = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
-            indices2b = np.where(np.absolute(thetas * 180 / np.pi - q) >= 85)
+            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0)] * 180 / np.pi - p) >= 85)
+            indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
-            indices2 = np.concatenate((indices2a, indices2b), axis=1)[0]
             break
     else:
         if np.absolute(data[0] - data[i]) > 10:
@@ -45,20 +41,17 @@ for i in range(1, len(data)):
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             break
 
-canvas1 = np.zeros((720*5, 1280*5), np.int)
-canvas2 = np.zeros((720*5, 1280*5), np.int)
+canvas1 = np.zeros((1080*5, 1920*5), np.int)
+canvas2 = np.zeros((1080*5, 1920*5), np.int)
 
 cv2.namedWindow("1", cv2.WINDOW_NORMAL)
 cv2.namedWindow("2", cv2.WINDOW_NORMAL)
 start_time = time.time()
 
-h, w = 720. * 5, 1280. * 5
+h, w = 1080. * 5, 1920. * 5
 
 rhos = array[indices1][:, 0]
 thetas = array[indices1][:, 1]
-plt.close("all")
-plt.hist(thetas*180/np.pi)
-plt.show()
 
 for rho, theta in zip(rhos, thetas):
     a = np.cos(theta)
@@ -87,7 +80,7 @@ for rho, theta in zip(rhos, thetas):
     canvas1[rr, cc] = canvas1[rr, cc] + 255
 
 dcanvas1 = cv2.convertScaleAbs(canvas1)
-cv2.imshow("1", canvas1)
+cv2.imshow("1", dcanvas1)
 
 rhos = array[indices2][:, 0]
 thetas = array[indices2][:, 1]
@@ -95,7 +88,7 @@ thetas = array[indices2][:, 1]
 for rho, theta in zip(rhos, thetas):
     a = np.cos(theta)
     b = np.sin(theta)
-    rho = rho + 2 * h / 5 * b + 2 * w / 5 * a
+    rho = rho + (2. * h / 5) * b + (2. * w / 5) * a
     if b == 0:
         x1, x2 = rho / a, (rho - h * b) / a
         y1, y2 = rho, rho
@@ -122,19 +115,17 @@ dcanvas2 = cv2.convertScaleAbs(canvas2)
 cv2.imshow("2", dcanvas2)
 cv2.waitKey(0)
 
-print(np.max(canvas1))
 alpha = np.max(canvas1) * 0.10
-if np.max(canvas1) * 0.10 > 20:
-    alpha = 20
+# if np.max(canvas1) * 0.10 > 20:
+#     alpha = 20
 y1, x1 = np.where(canvas1 >= np.max(canvas1) - alpha)
-y1, x1 = np.mean(y1), np.mean(x1)
+# y1, x1 = np.mean(y1), np.mean(x1)
 
-print(np.max(canvas2))
 alpha = np.max(canvas2) * 0.10
-if np.max(canvas2) * 0.10 > 20:
-    alpha = 20
+# if np.max(canvas2) * 0.10 > 20:
+#     alpha = 20
 y2, x2 = np.where(canvas2 >= np.max(canvas2) - alpha)
-y2, x2 = np.mean(y2), np.mean(x2)
+# y2, x2 = np.mean(y2), np.mean(x2)
 
 
 """range1 = None
