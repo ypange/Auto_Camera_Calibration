@@ -7,6 +7,7 @@ from preprocess import letterbox_image
 import pickle as pkl
 import argparse
 
+
 def on_trackbar(s):
     pass
 
@@ -28,6 +29,7 @@ def get_test_input(input_dim, CUDA):
 
     return img_
 
+
 def prep_image(img, inp_dim):
     """
     Prepare image for inputting to the neural network.
@@ -41,6 +43,7 @@ def prep_image(img, inp_dim):
     img_ = img[:,:,::-1].transpose((2,0,1)).copy()
     img_ = torch.from_numpy(img_).float().div(255.0).unsqueeze(0)
     return img_, orig_im, dim
+
 
 def write(x, img):
     x = x.cpu().numpy()
