@@ -2,28 +2,93 @@ import cv2
 import numpy as np
 import pickle as pkl
 import matplotlib.pyplot as plt
-import time
 from skimage.draw import line_aa
 
-file_name = 'outfiles/200vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi'
-with open(file_name, 'rb') as fp:
+
+def orthoProjection(P_groundToCamera, K, img):
+    H = np.zeros((3, 3), np.float32)
+    H[:, :2] = P_groundToCamera[:, :2]
+    H[:, 2] = P_groundToCamera[:, 3]
+    H = np.matmul(K, H)
+    H = np.linalg.inv(H)
+    M = np.float32([[1, 0, 75000], [0, 1, 75000], [0, 0, 1]])
+    M = np.matmul(M, H)
+    dst = cv2.warpPerspective(img, M, (100000, 100000))
+    dst = cv2.resize(dst, (20000, 20000))
+    cv2.namedWindow("", cv2.WINDOW_NORMAL)
+    #plt.imshow(dst)
+    cv2.imshow("", dst)
+    cv2.imwrite("ortho.jpg", dst)
+    cv2.imwrite("original.jpg", img)
+    cv2.waitKey(0)
+
+
+def computeProjection(H, K, u1, v1, u2, v2):
+    Kinv = np.linalg.inv(K)
+    cx, cy = K[0][2], K[1][2]
+    r1 = np.matmul(Kinv, np.array([[u1], [v1], [1.]])) / np.linalg.norm(np.matmul(Kinv, np.array([[u1], [v1], [1.]])))
+    r2 = np.matmul(Kinv, np.array([[u2], [v2], [1.]])) / np.linalg.norm(np.matmul(Kinv, np.array([[u2], [v2], [1.]])))
+    if (u1 - cx) < 0:
+        r1 = -r1
+    if (v2 - cy) > 0 :
+        r2 = -r2
+    r3 = np.cross(r1.transpose(), r2.transpose()).transpose() / (np.linalg.norm(np.cross(r1.transpose(), r2.transpose()).transpose()))
+    R = np.concatenate((r1,r2), axis = 1)
+    R = np.concatenate((R, r3), axis = 1)
+    tz = - H / R[2][2]
+    T = np.array([[0.],[0.],[tz]])
+    P = np.concatenate((R,T), axis = 1)
+    return P
+
+file_name = "vlc-record-2019-05-17-10h41m37s-GP030106.MP4-.mp4"
+factor = 199
+outfile_name = 'outfiles/' + str(factor) + file_name
+
+cap = cv2.VideoCapture("data_videos/" + file_name)
+ret, frame = cap.read()
+h, w, c = frame.shape
+xs = list(range(w )) * (h )
+ys = []
+for i in range(h ):
+    t = [i]
+    y = t * (w )
+    ys.append(y)
+ys = np.ravel(ys)
+xs = np.array(xs)
+ys = np.array(ys)
+rx, ry = xs - w / 2, ys - h / 2
+r_ = (rx ** 2 + ry ** 2) ** 0.5
+dist = ((h ** 2) + (w ** 2)) ** 0.5
+r = r_ / (dist / ((factor + 1) / 100.))
+theta = np.zeros(w * h )
+theta[np.where(r == 0)] = 1.0
+indices = np.where(r != 0)
+theta[indices] = np.arctan(r[indices]) / r[indices]
+sxs, sys = rx * theta + w / 2, ry * theta + h / 2
+a = np.reshape(sxs, (-1, w )).astype(np.float32)
+b = np.reshape(sys, (-1, w )).astype(np.float32)
+dst = cv2.remap(frame, a, b, cv2.INTER_LINEAR)
+
+with open(outfile_name, 'rb') as fp:
     array = np.array(pkl.load(fp))
+
 rhos, thetas = array[:, 0], array[:, 1]
-bins, z, _ = plt.hist(thetas*180/np.pi, bins=180, range=(-90, 90))
+
+bins, z, _ = plt.hist(thetas * 180 / np.pi, bins=180, range=(-90, 90))
 data = bins.argsort()[::-1]
 for i in range(1, len(data)):
     if 170 <= data[0] <= 179:
-        if np.absolute(data[0] - data[i]) > 10 and data[0] - 170 < data[i]:
+        if np.absolute(data[0] - data[i]) > 25 and data[0] - 165 < data[i]:
             p = data[0] - 90
             q = data[i] - 90
             print(p, q)
             indices1a = np.where(np.absolute(thetas * 180 / np.pi - p) <= 5)
-            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0 )] * 180 / np.pi - p) >= 85)
+            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0)] * 180 / np.pi - p) >= 85)
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
             break
     elif 0 <= data[0] <= 4:
-        if np.absolute(data[0] - data[i]) > 10 and 170 - data[0] >= data[i]:
+        if np.absolute(data[0] - data[i]) > 25 and 165 - data[0] >= data[i]:
             p = data[0] - 90
             q = data[i] - 90
             print(p, q)
@@ -33,7 +98,7 @@ for i in range(1, len(data)):
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
             break
     else:
-        if np.absolute(data[0] - data[i]) > 10:
+        if np.absolute(data[0] - data[i]) > 25:
             p = data[0] - 90
             q = data[i] - 90
             print(p, q)
@@ -41,15 +106,9 @@ for i in range(1, len(data)):
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             break
 
-canvas1 = np.zeros((1080*5, 1920*5), np.int)
-canvas2 = np.zeros((1080*5, 1920*5), np.int)
-
-cv2.namedWindow("1", cv2.WINDOW_NORMAL)
-cv2.namedWindow("2", cv2.WINDOW_NORMAL)
-start_time = time.time()
-
-h, w = 1080. * 5, 1920. * 5
-
+canvas1 = np.zeros((h * 5, w * 5), np.int)
+canvas2 = np.zeros((h * 5, w * 5), np.int)
+h, w = h * 5, w * 5
 rhos = array[indices1][:, 0]
 thetas = array[indices1][:, 1]
 
@@ -78,9 +137,6 @@ for rho, theta in zip(rhos, thetas):
     [(x1, y1), (x2, y2)] = cordinates
     rr, cc, val = line_aa(y1, x1, y2, x2)
     canvas1[rr, cc] = canvas1[rr, cc] + 255
-
-dcanvas1 = cv2.convertScaleAbs(canvas1)
-cv2.imshow("1", dcanvas1)
 
 rhos = array[indices2][:, 0]
 thetas = array[indices2][:, 1]
@@ -111,120 +167,52 @@ for rho, theta in zip(rhos, thetas):
     rr, cc, val = line_aa(y1, x1, y2, x2)
     canvas2[rr, cc] = canvas2[rr, cc] + 1
 
-dcanvas2 = cv2.convertScaleAbs(canvas2)
-cv2.imshow("2", dcanvas2)
-cv2.waitKey(0)
-
+print(np.max(canvas1), np.max(canvas2))
 alpha = np.max(canvas1) * 0.10
-# if np.max(canvas1) * 0.10 > 20:
-#     alpha = 20
 y1, x1 = np.where(canvas1 >= np.max(canvas1) - alpha)
-# y1, x1 = np.mean(y1), np.mean(x1)
-
 alpha = np.max(canvas2) * 0.10
-# if np.max(canvas2) * 0.10 > 20:
-#     alpha = 20
 y2, x2 = np.where(canvas2 >= np.max(canvas2) - alpha)
-# y2, x2 = np.mean(y2), np.mean(x2)
+cx, cy = w / 5 / 2, h / 5 / 2
+u1m, u2m, v1m, v2m = np.mean(x1) - 2 * w / 5 - cx, np.mean(x2) - 2 * w / 5 - cx, np.mean(y1) - 2 * h / 5 - cy, np.mean(y2) - 2 * h / 5 - cy
 
 
-"""range1 = None
-range2 = None
-
-if np.absolute(p - q) < 2 and (bins[p] - bins[q]) / bins[p] < 0.2:
-    range1 = (z[p] + z[q]) / 2.0, (z[p] + z[q]) / 2.0 + 10
-    if np.absolute(r - s) < 2 and (bins[r] - bins[s]) / bins[r] < 0.2:
-        range2 = (z[r] + z[s]) / 2.0, (z[r] + z[s]) / 2.0 + 10
-
+if abs(u1m) > abs(u2m) :
+    if u1m < 0:
+        u1 = u1m - np.std(x1) + cx
     else:
-        if (r == 0 and s == 17) or (r == 17 and s == 0):
-            range2a = (-85, -90)
-            range2b = (85, 90)
-        else:
-            range2 = z[r], z[r + 1]
+        u1 = u1m + np.std(x1) + cx
+    if v1m < 0:
+        v1 = v1m - np.std(y1) + cy
+    else:
+        v1 = v1m + np.std(y1) + cy
+    if u2m < 0:
+        u2 = u2m - np.std(x2) + cx
+    else:
+        u2 = u2m + np.std(x2) + cx
+    if v2m < 0:
+        v2 = v2m - np.std(y2) + cy
+    else:
+        v2 = v2m + np.std(y2) + cy
 else:
-    if (p == 0 and q == 17) or (p == 17 and q == 0):
-        range1a = (-85, -90)
-        range1b = (85, 90)
-        if np.absolute(r - s) < 2 and (bins[r] - bins[s]) / bins[r] < 0.2:
-            range2 = (z[r] + z[s]) / 2.0, (z[r] + z[s]) / 2.0 + 10
-        else:
-            range2 = z[r], z[r + 1]
+    if u1m < 0:
+        u2 = u1m - np.std(x1) + cx
     else:
-        range1 = z[p], z[p + 1]
-        if np.absolute(q - r) < 2 and (bins[q] - bins[r]) / bins[q] < 0.2:
-            range2 = (z[q] + z[r]) / 2.0, (z[q] + z[r]) / 2.0 + 10
-        else:
-            range2 = z[q], z[q + 1]
+        u2 = u1m + np.std(x1) + cx
+    if v1m < 0:
+        v2 = v1m - np.std(y1) + cy
+    else:
+        v2 = v1m + np.std(y1) + cy
+    if u2m < 0:
+        u1 = u2m - np.std(x2) + cx
+    else:
+        u1 = u2m + np.std(x2) + cx
+    if v2m < 0:
+        v1 = v2m - np.std(y2) + cy
+    else:
+        v1 = v2m + np.std(y2) + cy
 
-canvas1 = np.zeros(blank.shape, np.int)
-canvas2 = np.zeros(blank.shape, np.int)
-if range1 is not None:
-    print(range1)
-    if range2 is not None:
-        print(range2)
-    else:
-        print(range2a)
-        print(range2b)
-else:
-    print(range1a)
-    print(range1b)
-    if range2 is not None:
-        print(range2)
-    else:
-        print(range2a)
-        print(range2b)
-
-h, w = blank.shape
-h = int(h / 5)
-w = int(w / 5)
-for rho, theta in zip(rhos, thetas):
-    if range1 is not None:
-        if range1[0] <= theta * 180 / np.pi <= range1[1]:
-            temp = np.zeros(canvas1.shape, np.uint8)
-            x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
-            x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
-            cv2.line(temp, (x1, 0), (x2, h * 5), 1, 1)
-            canvas1 = temp + canvas1
-    else:
-        if (range1a[0] <= theta * 180 / np.pi <= range1a[1]) or (range1b[0] <= theta * 180 / np.pi <= range1b[1]):
-            temp = np.zeros(canvas1.shape, np.uint8)
-            x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
-            x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
-            cv2.line(temp, (x1, 0), (x2, h * 5), 1, 1)
-            canvas1 = temp + canvas1
-
-    if range2 is not None:
-        if range2[0] <= theta * 180 / np.pi <= range2[1]:
-            temp = np.zeros(canvas2.shape, np.uint8)
-            x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
-            x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
-            cv2.line(temp, (x1, 0), (x2, h * 5), 1, 1)
-            canvas2 = temp + canvas2
-    else:
-        if (range2a[0] <= theta * 180 / np.pi <= range2a[1]) or (range2b[0] <= theta * 180 / np.pi <= range2b[1]):
-            temp = np.zeros(canvas2.shape, np.uint8)
-            x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
-            x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
-            cv2.line(temp, (x1, 0), (x2, h * 5), 1, 1)
-            canvas2 = temp + canvas2
-
-cv2.imwrite("vlc-record-2019-05-17-10h41m37s-GP0301061.jpg", canvas1)
-cv2.imwrite("vlc-record-2019-05-17-10h41m37s-GP0301062.jpg", canvas2)
-canvas = canvas1 + canvas2
-plt.hist(canvas.ravel())
-plt.show()
-cv2.imwrite("vlc-record-2019-05-17-10h41m37s-GP030106_.jpg", canvas)
-"""
-"""
-14 139 140 138 141 142  13 137 143 136 144 135 145  15 134 147  12 146
- 148 133  17 149  16  11 150  18 151 132  10 152 154  19 153   9 155 159
- 157 158 160 131 162  20   8 161 156 164   5 165 163   3 167   7 168 166
- 174   0 172 170  22 169 178  21 177   6 176   4 173 175 171   2   1  24
-  26  23  25 130  27 129  35  28  36  31 128  29  33  30  32  37  34 127
-  38  45  39  81  70 123 121  52 118  44  43  40  73  42  71 126  51  41
- 124  57 122 116  63 120  59 125 111 112 117  49  54  50  58  93  55 105
- 104  56 114 115  76 100 113  78  46  48  91  62  82  75  92 110  47  72
- 119  74 102  60  77  90  99 106  94  69  68  67  66  65  64  86  61  53
-  85  89  79  83  87  88  95  98 101 107 109  80  96  97 103 108 179  84]
-"""
+f = ((u1 - cx) * (cx - u2) + (v1 - cy) * (cy - v2)) ** 0.5
+K = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
+print(K)
+P = computeProjection(9000, K, u1, v1, u2, v2)
+orthoProjection(P, K, dst)
