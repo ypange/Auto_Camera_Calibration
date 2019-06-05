@@ -153,6 +153,7 @@ kp1 = []
 sift = cv2.xfeatures2d.SIFT_create()
 count = 0
 lines = []
+M = np.array([[1.,0.,2.*w],[0.,1.,2.*h]])
 while True:
     ret, frame = cap.read()
     if ret is not True:
@@ -162,7 +163,7 @@ while True:
         frame = cv2.resize(frame, (int(w), int(h)))
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         foot_print = np.zeros(gray.shape, np.uint8)
-
+        blank = cv2.warpAffine(frame, M, (w*5,h*5))
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
 
@@ -219,7 +220,6 @@ while True:
                     if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 100:
                         cv2.circle(frame, (x1, y1), 3, (255, 0, 0), -1)
                         cv2.circle(frame, (x2, y2), 3, (0, 255, 0), -1)
-                        cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
                         if y1 != y2:
                             theta = np.arctan(-(x2 - x1) / (y2 - y1))
                         else:
@@ -229,8 +229,13 @@ while True:
                                 theta = np.pi / 2
                         rho = y1 * np.sin(theta) + x1 * np.cos(theta)
                         lines.append([rho, theta])
+                        x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
+                        x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
+                        cv2.line(blank, (x1,0), (x2, 5*h), (0,0,255), 1, cv2.LINE_AA)
+                        
             kp1 = kp2
             des1 = des2
+
 
         cv2.imshow("Frame", frame)
         if cv2.waitKey(1) == 27:
