@@ -4,6 +4,34 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 from skimage.draw import line_aa
 
+def computeDistortionCoefficients(mapx, mapy, K):
+    x_points = (np.random.rand(100) * K[0][2] * 2).astype(int)
+    y_points = (np.random.rand(100) * K[1][2] * 2).astype(int)
+    x_distorted = mapx[y_points, x_points] - K[0][2]
+    y_distorted = mapy[y_points, x_points] - K[1][2]
+    x_undistorted = x_points - K[0][2]
+    y_undistorted = y_points - K[1][2]
+    r2 = (x_undistorted ** 2 + y_undistorted ** 2) / (K[0][0] ** 2)
+    r4 = r2 ** 2
+    r6 = r2 ** 3
+    B = x_distorted / x_undistorted - 1
+    A = np.array([r2, r4, r6]).transpose()
+    k1,k2,k3 = np.linalg.lstsq(A,B)[0]
+    return np.array([k1,k2,0.,0.,k3])
+
+
+def computeVanishinPoint(xs, ys, h, w, factor):
+    rx, ry = xs - w / 2, ys - h / 2
+    r_ = (rx ** 2 + ry ** 2) ** 0.5
+    dist = ((h ** 2) + (w ** 2)) ** 0.5
+    r = r_ / (dist / ((factor + 1) / 100.))
+    if r == 0:
+        theta = 1.0
+    else:
+        theta = np.arctan(r) / r
+    vx, vy = rx * theta + w / 2, ry * theta + h / 2
+    return vx, vy
+
 
 def orthoProjection(P_groundToCamera, K, img):
     H = np.zeros((3, 3), np.float32)
@@ -65,9 +93,9 @@ theta[np.where(r == 0)] = 1.0
 indices = np.where(r != 0)
 theta[indices] = np.arctan(r[indices]) / r[indices]
 sxs, sys = rx * theta + w / 2, ry * theta + h / 2
-a = np.reshape(sxs, (-1, w )).astype(np.float32)
-b = np.reshape(sys, (-1, w )).astype(np.float32)
-dst = cv2.remap(frame, a, b, cv2.INTER_LINEAR)
+mapx = np.reshape(sxs, (-1, w )).astype(np.float32)
+mapy = np.reshape(sys, (-1, w )).astype(np.float32)
+dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
 
 with open(outfile_name, 'rb') as fp:
     array = np.array(pkl.load(fp))
@@ -83,7 +111,7 @@ for i in range(1, len(data)):
             q = data[i] - 90
             print(p, q)
             indices1a = np.where(np.absolute(thetas * 180 / np.pi - p) <= 5)
-            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0)] * 180 / np.pi - p) >= 85)
+            indices1b = np.where(np.absolute(thetas[np.where(thetas >= 0)] * 180 / np.pi - p) >= 85)
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
             break
@@ -93,7 +121,7 @@ for i in range(1, len(data)):
             q = data[i] - 90
             print(p, q)
             indices1a = np.where(np.absolute(thetas * 180 / np.pi - p) <= 5)
-            indices1b = np.where(np.absolute(thetas[np.where(alpha >= 0)] * 180 / np.pi - p) >= 85)
+            indices1b = np.where(np.absolute(thetas[np.where(thetas >= 0)] * 180 / np.pi - p) >= 85)
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             indices1 = np.concatenate((indices1a, indices1b), axis=1)[0]
             break
@@ -168,51 +196,56 @@ for rho, theta in zip(rhos, thetas):
     canvas2[rr, cc] = canvas2[rr, cc] + 1
 
 print(np.max(canvas1), np.max(canvas2))
-alpha = np.max(canvas1) * 0.10
+alpha = np.max(canvas1) * 0.20
 y1, x1 = np.where(canvas1 >= np.max(canvas1) - alpha)
-alpha = np.max(canvas2) * 0.10
+alpha = np.max(canvas2) * 0.20
 y2, x2 = np.where(canvas2 >= np.max(canvas2) - alpha)
 cx, cy = w / 5 / 2, h / 5 / 2
 u1m, u2m, v1m, v2m = np.mean(x1) - 2 * w / 5 - cx, np.mean(x2) - 2 * w / 5 - cx, np.mean(y1) - 2 * h / 5 - cy, np.mean(y2) - 2 * h / 5 - cy
 
-
 if abs(u1m) > abs(u2m) :
     if u1m < 0:
-        u1 = u1m - np.std(x1) + cx
+        u1 = u1m - 3 * np.std(x1) + cx
     else:
-        u1 = u1m + np.std(x1) + cx
+        u1 = u1m + 3 * np.std(x1) + cx
     if v1m < 0:
-        v1 = v1m - np.std(y1) + cy
+        v1 = v1m - 3 * np.std(y1) + cy
     else:
-        v1 = v1m + np.std(y1) + cy
+        v1 = v1m + 3 * np.std(y1) + cy
     if u2m < 0:
-        u2 = u2m - np.std(x2) + cx
+        u2 = u2m - 3 * np.std(x2) + cx
     else:
-        u2 = u2m + np.std(x2) + cx
+        u2 = u2m + 3 * np.std(x2) + cx
     if v2m < 0:
-        v2 = v2m - np.std(y2) + cy
+        v2 = v2m - 3 * np.std(y2) + cy
     else:
-        v2 = v2m + np.std(y2) + cy
+        v2 = v2m + 3 * np.std(y2) + cy
 else:
     if u1m < 0:
-        u2 = u1m - np.std(x1) + cx
+        u2 = u1m - 3 * np.std(x1) + cx
     else:
-        u2 = u1m + np.std(x1) + cx
+        u2 = u1m + 3 * np.std(x1) + cx
     if v1m < 0:
-        v2 = v1m - np.std(y1) + cy
+        v2 = v1m - 3 * np.std(y1) + cy
     else:
-        v2 = v1m + np.std(y1) + cy
+        v2 = v1m + 3 * np.std(y1) + cy
     if u2m < 0:
-        u1 = u2m - np.std(x2) + cx
+        u1 = u2m - 3 * np.std(x2) + cx
     else:
-        u1 = u2m + np.std(x2) + cx
+        u1 = u2m + 3 * np.std(x2) + cx
     if v2m < 0:
-        v1 = v2m - np.std(y2) + cy
+        v1 = v2m - 3 * np.std(y2) + cy
     else:
-        v1 = v2m + np.std(y2) + cy
+        v1 = v2m + 3 * np.std(y2) + cy
 
 f = ((u1 - cx) * (cx - u2) + (v1 - cy) * (cy - v2)) ** 0.5
-K = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
-print(K)
+K1 = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
+print(K1)
 P = computeProjection(9000, K, u1, v1, u2, v2)
 orthoProjection(P, K, dst)
+(u1,v1), (u2,v2) = computeVanishinPoint(u1,v1,h/5,w/5, factor), computeVanishinPoint(u2,v2,h/5,w/5, factor)
+f = ((u1 - cx) * (cx - u2) + (v1 - cy) * (cy - v2)) ** 0.5
+K2 = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
+print(K2)
+P = computeProjection(9000, K, u1, v1, u2, v2)
+orthoProjection(P, K, frame)

@@ -229,14 +229,8 @@ while True:
                                 theta = np.pi / 2
                         rho = y1 * np.sin(theta) + x1 * np.cos(theta)
                         lines.append([rho, theta])
-                        x1 = int(w * 2 + rho / np.cos(theta) - (h * 0 - h * 2) * np.tan(theta))
-                        x2 = int(w * 2 + rho / np.cos(theta) - (h * 5 - h * 2) * np.tan(theta))
-                        cv2.line(blank, (x1,0), (x2, 5*h), (0,0,255), 1, cv2.LINE_AA)
-                        
             kp1 = kp2
             des1 = des2
-
-
         cv2.imshow("Frame", frame)
         if cv2.waitKey(1) == 27:
             break
