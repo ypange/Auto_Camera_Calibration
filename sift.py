@@ -13,7 +13,7 @@ def on_trackbar(s):
 
 
 cv2.namedWindow("Frame", cv2.WINDOW_NORMAL)
-cv2.createTrackbar("Distortion_Factor", "Frame", 200, 1000, on_trackbar)
+cv2.createTrackbar("Distortion_Factor", "Frame", 0, 1000, on_trackbar)
 
 
 def get_test_input(input_dim, CUDA):
@@ -116,7 +116,7 @@ model(get_test_input(inp_dim, CUDA), CUDA)
 
 model.eval()
 
-file_name = "vlc-record-2019-05-21-12h50m30s-2017_0627_145452_001.MOV-.avi"
+file_name = "vlc-record-2019-05-24-10h20m44s-2017_0705_151023_001.MP4-.mp4"
 cap = cv2.VideoCapture("data_videos/" + file_name)
 ret, frame = cap.read()
 h, w, c = frame.shape
@@ -153,7 +153,7 @@ kp1 = []
 sift = cv2.xfeatures2d.SIFT_create()
 count = 0
 lines = []
-M = np.array([[1.,0.,2.*w],[0.,1.,2.*h]])
+
 while True:
     ret, frame = cap.read()
     if ret is not True:
@@ -163,7 +163,7 @@ while True:
         frame = cv2.resize(frame, (int(w), int(h)))
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         foot_print = np.zeros(gray.shape, np.uint8)
-        blank = cv2.warpAffine(frame, M, (w*5,h*5))
+        # blank = cv2.warpAffine(frame, M, (w*5,h*5))
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
 
@@ -220,6 +220,7 @@ while True:
                     if 10 < (np.absolute(x1 - x2) + np.absolute(y1 - y2)) < 100:
                         cv2.circle(frame, (x1, y1), 3, (255, 0, 0), -1)
                         cv2.circle(frame, (x2, y2), 3, (0, 255, 0), -1)
+
                         if y1 != y2:
                             theta = np.arctan(-(x2 - x1) / (y2 - y1))
                         else:
@@ -229,6 +230,7 @@ while True:
                                 theta = np.pi / 2
                         rho = y1 * np.sin(theta) + x1 * np.cos(theta)
                         lines.append([rho, theta])
+                        #cv2.line(frame, (int(rho / np.cos(theta)), 0), (int(rho / np.cos(theta) - h * np.tan(theta)), int(h)), (255,0,0), 2)
             kp1 = kp2
             des1 = des2
         cv2.imshow("Frame", frame)

@@ -68,8 +68,8 @@ def computeProjection(H, K, u1, v1, u2, v2):
     P = np.concatenate((R,T), axis = 1)
     return P
 
-file_name = "vlc-record-2019-05-17-10h41m37s-GP030106.MP4-.mp4"
-factor = 199
+file_name = "vlc-record-2019-05-24-10h20m44s-2017_0705_151023_001.MP4-.mp4"
+factor = 150
 outfile_name = 'outfiles/' + str(factor) + file_name
 
 cap = cv2.VideoCapture("data_videos/" + file_name)
@@ -134,8 +134,8 @@ for i in range(1, len(data)):
             indices2 = np.where(np.absolute(thetas * 180 / np.pi - q) <= 5)
             break
 
-canvas1 = np.zeros((h * 5, w * 5), np.int)
-canvas2 = np.zeros((h * 5, w * 5), np.int)
+canvas3 = np.zeros((h * 5, w * 5), np.int)
+canvas4 = np.zeros((h * 5, w * 5), np.int)
 h, w = h * 5, w * 5
 rhos = array[indices1][:, 0]
 thetas = array[indices1][:, 1]
@@ -164,7 +164,7 @@ for rho, theta in zip(rhos, thetas):
         cordinates.append((int(w - 1), (int(y2))))
     [(x1, y1), (x2, y2)] = cordinates
     rr, cc, val = line_aa(y1, x1, y2, x2)
-    canvas1[rr, cc] = canvas1[rr, cc] + 255
+    canvas3[rr, cc] = canvas3[rr, cc] + 255
 
 rhos = array[indices2][:, 0]
 thetas = array[indices2][:, 1]
@@ -193,59 +193,77 @@ for rho, theta in zip(rhos, thetas):
         cordinates.append((int(w - 1), (int(y2))))
     [(x1, y1), (x2, y2)] = cordinates
     rr, cc, val = line_aa(y1, x1, y2, x2)
-    canvas2[rr, cc] = canvas2[rr, cc] + 1
+    canvas4[rr, cc] = canvas4[rr, cc] + 1
 
-print(np.max(canvas1), np.max(canvas2))
-alpha = np.max(canvas1) * 0.20
-y1, x1 = np.where(canvas1 >= np.max(canvas1) - alpha)
-alpha = np.max(canvas2) * 0.20
-y2, x2 = np.where(canvas2 >= np.max(canvas2) - alpha)
+
+alpha = np.max(canvas3) * 0.20
+y1, x1 = np.where(canvas3 >= np.max(canvas3) - alpha)
+alpha = np.max(canvas4) * 0.20
+y2, x2 = np.where(canvas4 >= np.max(canvas4) - alpha)
 cx, cy = w / 5 / 2, h / 5 / 2
-u1m, u2m, v1m, v2m = np.mean(x1) - 2 * w / 5 - cx, np.mean(x2) - 2 * w / 5 - cx, np.mean(y1) - 2 * h / 5 - cy, np.mean(y2) - 2 * h / 5 - cy
+u1m, u2m, v1m, v2m = np.sum(canvas3[y1,x1] * x1) / np.sum(canvas3[y1,x1]) - 2 * w / 5 - cx, np.sum(canvas4[y2,x2] * x2) / np.sum(canvas4[y2,x2]) - 2 * w / 5 - cx, np.sum(canvas3[y1,x1] * y1) / np.sum(canvas3[y1,x1]) - 2 * h / 5 - cy, np.sum(canvas4[y2,x2] * y2) / np.sum(canvas4[y2,x2]) - 2 * h / 5 - cy
+plt.figure(1)
+plt.imshow(canvas3)
+plt.scatter(u1m - (- 2 * w / 5 - cx),v1m - (- 2 * h / 5 - cy),c="red")
+
+plt.figure(2)
+plt.imshow(canvas4)
+plt.scatter(u2m - (- 2 * w / 5 - cx),v2m - (- 2 * h / 5 - cy),c="red")
 
 if abs(u1m) > abs(u2m) :
     if u1m < 0:
-        u1 = u1m - 3 * np.std(x1) + cx
+        u1 = u1m - 2 * np.std(x1) + cx
     else:
-        u1 = u1m + 3 * np.std(x1) + cx
-    if v1m < 0:
-        v1 = v1m - 3 * np.std(y1) + cy
+        u1 = u1m + 2 * np.std(x1) + cx
+
+    if canvas3[int(v1m - 2 * np.std(y1) + cy + h / 5 * 2)][int(u1 + w / 5 * 2)] > canvas3[int(v1m + 2 * np.std(y1) + cy + h / 5 * 2)][int(u1 + w / 5 * 2)]:
+        v1 = v1m - 2 * np.std(y1) + cy
     else:
-        v1 = v1m + 3 * np.std(y1) + cy
-    if u2m < 0:
-        u2 = u2m - 3 * np.std(x2) + cx
-    else:
-        u2 = u2m + 3 * np.std(x2) + cx
+        v1 = v1m + 2 * np.std(y1) + cy
+
     if v2m < 0:
-        v2 = v2m - 3 * np.std(y2) + cy
+        v2 = v2m - 2 * np.std(y2) + cy
     else:
-        v2 = v2m + 3 * np.std(y2) + cy
+        v2 = v2m + 2 * np.std(y2) + cy
+
+    if canvas4[int(v2 + h / 5 * 2)][int(u2m + 2 * np.std(x2) + cx + w / 5 * 2)] > canvas4[int(v2 + h / 5 * 2)][int(u2m - 2 * np.std(x2) + cx + w / 5 * 2)]:
+        u2 = u2m + 2 * np.std(x2) + cx
+    else:
+        u2 = u2m - 2 * np.std(x2) + cx
+
 else:
-    if u1m < 0:
-        u2 = u1m - 3 * np.std(x1) + cx
-    else:
-        u2 = u1m + 3 * np.std(x1) + cx
     if v1m < 0:
-        v2 = v1m - 3 * np.std(y1) + cy
+        v2 = v1m - 2 * np.std(y1) + cy
     else:
-        v2 = v1m + 3 * np.std(y1) + cy
+        v2 = v1m + 2 * np.std(y1) + cy
+    if canvas3[int(v2 + h / 5 * 2)][int(u1m - 2 * np.std(x1) + cx + w / 5 * 2)] > canvas3[int(v2 + h / 5 * 2)][int(u1m + 2 * np.std(x1) + cx + w / 5* 2)]:
+        u2 = u1m - 2 * np.std(x1) + cx
+    else:
+        u2 = u1m + 2 * np.std(x1) + cx
+
     if u2m < 0:
-        u1 = u2m - 3 * np.std(x2) + cx
+        u1 = u2m - 2 * np.std(x2) + cx
     else:
-        u1 = u2m + 3 * np.std(x2) + cx
-    if v2m < 0:
-        v1 = v2m - 3 * np.std(y2) + cy
+        u1 = u2m + 2 * np.std(x2) + cx
+
+    if canvas4[int(v2m - 2 * np.std(y2) + cy + h / 5 * 2)][int(u1 + w / 5 * 2)] > canvas4[int(v2m + 2 * np.std(y2) + cy + h / 5 * 2)][int(u1 + w / 5 * 2)]:
+        v1 = v2m - 2 * np.std(y2) + cy
     else:
-        v1 = v2m + 3 * np.std(y2) + cy
+        v1 = v2m + 2 * np.std(y2) + cy
 
 f = ((u1 - cx) * (cx - u2) + (v1 - cy) * (cy - v2)) ** 0.5
-K1 = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
-print(K1)
+K = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
 P = computeProjection(9000, K, u1, v1, u2, v2)
 orthoProjection(P, K, dst)
+print(K)
 (u1,v1), (u2,v2) = computeVanishinPoint(u1,v1,h/5,w/5, factor), computeVanishinPoint(u2,v2,h/5,w/5, factor)
 f = ((u1 - cx) * (cx - u2) + (v1 - cy) * (cy - v2)) ** 0.5
 K2 = np.array([[f, 0., cx], [0., f, cy], [0., 0., 1.]])
-print(K2)
-P = computeProjection(9000, K, u1, v1, u2, v2)
+P = computeProjection(9000, K2, u1, v1, u2, v2)
 orthoProjection(P, K, frame)
+print(K2)
+
+"""
+f70512, f30106, f145452
+Out[121]: (495.61894113116557, 442.90798432615765, 398.3028604130947)
+"""
